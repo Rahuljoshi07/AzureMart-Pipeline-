@@ -1,4 +1,4 @@
-# Retail Data Lakehouse Pipeline
+# AzureMart-Pipeline
 
 A data lakehouse built on Azure that processes retail sales data through Bronze/Silver/Gold layers using Databricks and PySpark, builds a star schema, and loads it into Azure SQL for reporting.
 
