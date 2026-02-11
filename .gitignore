@@ -1,0 +1,34 @@
+# Byte-compiled / optimized
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Data (generated — don't commit large files)
+data/raw/
+data/bronze/
+data/silver/
+data/gold/
+
+# Azure secrets (NEVER commit)
+config/azure_config.json
+*.env
+.env
+
+# Spark
+metastore_db/
+derby.log
+spark-warehouse/

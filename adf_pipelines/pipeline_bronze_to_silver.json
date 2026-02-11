@@ -1,0 +1,91 @@
+{
+    "name": "PL_Bronze_To_Silver",
+    "properties": {
+        "description": "Triggers Databricks notebook to transform raw Bronze data into cleaned Silver layer with data quality checks.",
+        "activities": [
+            {
+                "name": "RunSilverTransformation",
+                "type": "DatabricksNotebook",
+                "description": "Execute Silver layer cleaning and standardization notebook",
+                "typeProperties": {
+                    "notebookPath": "/Shared/retail-lakehouse/02_silver_transformation",
+                    "baseParameters": {
+                        "processing_mode": {
+                            "value": "@pipeline().parameters.processing_mode",
+                            "type": "Expression"
+                        },
+                        "ingestion_date": {
+                            "value": "@pipeline().parameters.ingestion_date",
+                            "type": "Expression"
+                        }
+                    }
+                },
+                "linkedServiceName": {
+                    "referenceName": "LS_Databricks",
+                    "type": "LinkedServiceReference"
+                }
+            },
+            {
+                "name": "LogSilverSuccess",
+                "type": "SqlServerStoredProcedure",
+                "dependsOn": [
+                    {
+                        "activity": "RunSilverTransformation",
+                        "dependencyConditions": ["Succeeded"]
+                    }
+                ],
+                "typeProperties": {
+                    "storedProcedureName": "dbo.sp_log_pipeline",
+                    "storedProcedureParameters": {
+                        "pipeline_name": { "value": "PL_Bronze_To_Silver", "type": "String" },
+                        "run_id": { "value": "@pipeline().RunId", "type": "String" },
+                        "step_name": { "value": "SilverTransformation", "type": "String" },
+                        "status": { "value": "SUCCESS", "type": "String" }
+                    }
+                },
+                "linkedServiceName": {
+                    "referenceName": "LS_AzureSQL",
+                    "type": "LinkedServiceReference"
+                }
+            },
+            {
+                "name": "LogSilverFailure",
+                "type": "SqlServerStoredProcedure",
+                "dependsOn": [
+                    {
+                        "activity": "RunSilverTransformation",
+                        "dependencyConditions": ["Failed"]
+                    }
+                ],
+                "typeProperties": {
+                    "storedProcedureName": "dbo.sp_log_pipeline",
+                    "storedProcedureParameters": {
+                        "pipeline_name": { "value": "PL_Bronze_To_Silver", "type": "String" },
+                        "run_id": { "value": "@pipeline().RunId", "type": "String" },
+                        "step_name": { "value": "SilverTransformation", "type": "String" },
+                        "status": { "value": "FAILED", "type": "String" },
+                        "error_message": { "value": "@activity('RunSilverTransformation').error.message", "type": "String" }
+                    }
+                },
+                "linkedServiceName": {
+                    "referenceName": "LS_AzureSQL",
+                    "type": "LinkedServiceReference"
+                }
+            }
+        ],
+        "parameters": {
+            "processing_mode": {
+                "type": "string",
+                "defaultValue": "incremental"
+            },
+            "ingestion_date": {
+                "type": "string",
+                "defaultValue": "@utcnow()"
+            }
+        },
+        "annotations": ["retail", "silver", "transformation"],
+        "folder": {
+            "name": "RetailLakehouse/Transformation"
+        }
+    }
+}

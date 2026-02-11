@@ -1,0 +1,59 @@
+{
+    "name": "PL_Silver_To_Gold",
+    "properties": {
+        "description": "Triggers Databricks notebook to build Gold layer star schema (dimension and fact tables) from Silver data.",
+        "activities": [
+            {
+                "name": "RunGoldStarSchema",
+                "type": "DatabricksNotebook",
+                "description": "Build dimension and fact tables in Gold layer",
+                "typeProperties": {
+                    "notebookPath": "/Shared/retail-lakehouse/03_gold_star_schema",
+                    "baseParameters": {
+                        "processing_mode": {
+                            "value": "@pipeline().parameters.processing_mode",
+                            "type": "Expression"
+                        }
+                    }
+                },
+                "linkedServiceName": {
+                    "referenceName": "LS_Databricks",
+                    "type": "LinkedServiceReference"
+                }
+            },
+            {
+                "name": "LogGoldSuccess",
+                "type": "SqlServerStoredProcedure",
+                "dependsOn": [
+                    {
+                        "activity": "RunGoldStarSchema",
+                        "dependencyConditions": ["Succeeded"]
+                    }
+                ],
+                "typeProperties": {
+                    "storedProcedureName": "dbo.sp_log_pipeline",
+                    "storedProcedureParameters": {
+                        "pipeline_name": { "value": "PL_Silver_To_Gold", "type": "String" },
+                        "run_id": { "value": "@pipeline().RunId", "type": "String" },
+                        "step_name": { "value": "GoldStarSchema", "type": "String" },
+                        "status": { "value": "SUCCESS", "type": "String" }
+                    }
+                },
+                "linkedServiceName": {
+                    "referenceName": "LS_AzureSQL",
+                    "type": "LinkedServiceReference"
+                }
+            }
+        ],
+        "parameters": {
+            "processing_mode": {
+                "type": "string",
+                "defaultValue": "full"
+            }
+        },
+        "annotations": ["retail", "gold", "star-schema"],
+        "folder": {
+            "name": "RetailLakehouse/Transformation"
+        }
+    }
+}

@@ -1,0 +1,142 @@
+{
+    "name": "PL_Ingest_Raw_Sales",
+    "properties": {
+        "description": "Parameterized pipeline to ingest raw sales CSV files from source into Data Lake Bronze container with date-based partitioning.",
+        "activities": [
+            {
+                "name": "GetFileMetadata",
+                "type": "GetMetadata",
+                "description": "Check if source files exist for the given date",
+                "typeProperties": {
+                    "dataset": {
+                        "referenceName": "DS_Source_CSV",
+                        "type": "DatasetReference",
+                        "parameters": {
+                            "folderPath": {
+                                "value": "@concat('sales/', formatDateTime(pipeline().parameters.ingestion_date, 'yyyy/MM/dd'))",
+                                "type": "Expression"
+                            }
+                        }
+                    },
+                    "fieldList": ["exists", "childItems"]
+                }
+            },
+            {
+                "name": "IfSourceExists",
+                "type": "IfCondition",
+                "dependsOn": [
+                    {
+                        "activity": "GetFileMetadata",
+                        "dependencyConditions": ["Succeeded"]
+                    }
+                ],
+                "typeProperties": {
+                    "expression": {
+                        "value": "@activity('GetFileMetadata').output.exists",
+                        "type": "Expression"
+                    },
+                    "ifTrueActivities": [
+                        {
+                            "name": "CopyRawToDataLake",
+                            "type": "Copy",
+                            "description": "Copy CSV files from source to Data Lake raw zone",
+                            "typeProperties": {
+                                "source": {
+                                    "type": "DelimitedTextSource",
+                                    "storeSettings": {
+                                        "type": "AzureBlobStorageReadSettings",
+                                        "recursive": true,
+                                        "wildcardFileName": "*.csv"
+                                    }
+                                },
+                                "sink": {
+                                    "type": "DelimitedTextSink",
+                                    "storeSettings": {
+                                        "type": "AzureBlobFSWriteSettings"
+                                    },
+                                    "formatSettings": {
+                                        "type": "DelimitedTextWriteSettings",
+                                        "fileExtension": ".csv"
+                                    }
+                                },
+                                "enableStaging": false
+                            },
+                            "inputs": [
+                                {
+                                    "referenceName": "DS_Source_CSV",
+                                    "type": "DatasetReference",
+                                    "parameters": {
+                                        "folderPath": "@concat('sales/', formatDateTime(pipeline().parameters.ingestion_date, 'yyyy/MM/dd'))"
+                                    }
+                                }
+                            ],
+                            "outputs": [
+                                {
+                                    "referenceName": "DS_DataLake_Raw",
+                                    "type": "DatasetReference",
+                                    "parameters": {
+                                        "folderPath": "@concat('sales/ingestion_date=', formatDateTime(pipeline().parameters.ingestion_date, 'yyyy-MM-dd'))"
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "name": "LogIngestionSuccess",
+                            "type": "SqlServerStoredProcedure",
+                            "dependsOn": [
+                                {
+                                    "activity": "CopyRawToDataLake",
+                                    "dependencyConditions": ["Succeeded"]
+                                }
+                            ],
+                            "typeProperties": {
+                                "storedProcedureName": "dbo.sp_log_pipeline",
+                                "storedProcedureParameters": {
+                                    "pipeline_name": { "value": "PL_Ingest_Raw_Sales", "type": "String" },
+                                    "run_id": { "value": "@pipeline().RunId", "type": "String" },
+                                    "step_name": { "value": "CopyRawToDataLake", "type": "String" },
+                                    "status": { "value": "SUCCESS", "type": "String" },
+                                    "row_count": { "value": "@activity('CopyRawToDataLake').output.rowsCopied", "type": "Int32" }
+                                }
+                            },
+                            "linkedServiceName": {
+                                "referenceName": "LS_AzureSQL",
+                                "type": "LinkedServiceReference"
+                            }
+                        }
+                    ],
+                    "ifFalseActivities": [
+                        {
+                            "name": "LogNoData",
+                            "type": "SqlServerStoredProcedure",
+                            "typeProperties": {
+                                "storedProcedureName": "dbo.sp_log_pipeline",
+                                "storedProcedureParameters": {
+                                    "pipeline_name": { "value": "PL_Ingest_Raw_Sales", "type": "String" },
+                                    "run_id": { "value": "@pipeline().RunId", "type": "String" },
+                                    "step_name": { "value": "CheckSource", "type": "String" },
+                                    "status": { "value": "WARNING", "type": "String" },
+                                    "error_message": { "value": "No source files found for date", "type": "String" }
+                                }
+                            },
+                            "linkedServiceName": {
+                                "referenceName": "LS_AzureSQL",
+                                "type": "LinkedServiceReference"
+                            }
+                        }
+                    ]
+                }
+            }
+        ],
+        "parameters": {
+            "ingestion_date": {
+                "type": "string",
+                "defaultValue": "@utcnow()"
+            }
+        },
+        "annotations": ["retail", "ingestion", "bronze"],
+        "folder": {
+            "name": "RetailLakehouse/Ingestion"
+        }
+    }
+}

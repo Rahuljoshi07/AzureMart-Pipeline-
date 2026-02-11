@@ -1,0 +1,123 @@
+{
+    "name": "PL_Master_Orchestrator",
+    "properties": {
+        "description": "Master orchestration pipeline that chains the full lakehouse workflow: Ingest → Bronze → Silver → Gold → SQL Load. Supports both full and incremental modes.",
+        "activities": [
+            {
+                "name": "SetProcessingDate",
+                "type": "SetVariable",
+                "typeProperties": {
+                    "variableName": "processing_date",
+                    "value": {
+                        "value": "@if(empty(pipeline().parameters.ingestion_date), utcnow('yyyy-MM-dd'), pipeline().parameters.ingestion_date)",
+                        "type": "Expression"
+                    }
+                }
+            },
+            {
+                "name": "Step1_IngestRaw",
+                "type": "ExecutePipeline",
+                "dependsOn": [
+                    {
+                        "activity": "SetProcessingDate",
+                        "dependencyConditions": ["Succeeded"]
+                    }
+                ],
+                "typeProperties": {
+                    "pipeline": {
+                        "referenceName": "PL_Ingest_Raw_Sales",
+                        "type": "PipelineReference"
+                    },
+                    "parameters": {
+                        "ingestion_date": "@variables('processing_date')"
+                    },
+                    "waitOnCompletion": true
+                }
+            },
+            {
+                "name": "Step2_BronzeToSilver",
+                "type": "ExecutePipeline",
+                "dependsOn": [
+                    {
+                        "activity": "Step1_IngestRaw",
+                        "dependencyConditions": ["Succeeded"]
+                    }
+                ],
+                "typeProperties": {
+                    "pipeline": {
+                        "referenceName": "PL_Bronze_To_Silver",
+                        "type": "PipelineReference"
+                    },
+                    "parameters": {
+                        "processing_mode": "@pipeline().parameters.processing_mode",
+                        "ingestion_date": "@variables('processing_date')"
+                    },
+                    "waitOnCompletion": true
+                }
+            },
+            {
+                "name": "Step3_SilverToGold",
+                "type": "ExecutePipeline",
+                "dependsOn": [
+                    {
+                        "activity": "Step2_BronzeToSilver",
+                        "dependencyConditions": ["Succeeded"]
+                    }
+                ],
+                "typeProperties": {
+                    "pipeline": {
+                        "referenceName": "PL_Silver_To_Gold",
+                        "type": "PipelineReference"
+                    },
+                    "parameters": {
+                        "processing_mode": "@pipeline().parameters.processing_mode"
+                    },
+                    "waitOnCompletion": true
+                }
+            },
+            {
+                "name": "Step4_GoldToSQL",
+                "type": "ExecutePipeline",
+                "dependsOn": [
+                    {
+                        "activity": "Step3_SilverToGold",
+                        "dependencyConditions": ["Succeeded"]
+                    }
+                ],
+                "typeProperties": {
+                    "pipeline": {
+                        "referenceName": "PL_Gold_To_SQL",
+                        "type": "PipelineReference"
+                    },
+                    "parameters": {
+                        "load_mode": "@pipeline().parameters.sql_load_mode"
+                    },
+                    "waitOnCompletion": true
+                }
+            }
+        ],
+        "parameters": {
+            "ingestion_date": {
+                "type": "string",
+                "defaultValue": ""
+            },
+            "processing_mode": {
+                "type": "string",
+                "defaultValue": "incremental"
+            },
+            "sql_load_mode": {
+                "type": "string",
+                "defaultValue": "overwrite"
+            }
+        },
+        "variables": {
+            "processing_date": {
+                "type": "String"
+            }
+        },
+        "annotations": ["retail", "master", "orchestration"],
+        "folder": {
+            "name": "RetailLakehouse"
+        }
+    }
+}

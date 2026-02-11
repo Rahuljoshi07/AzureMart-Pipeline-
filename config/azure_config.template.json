@@ -1,0 +1,31 @@
+{
+    "azure": {
+        "subscription_id": "<YOUR_SUBSCRIPTION_ID>",
+        "resource_group": "rg-retail-lakehouse",
+        "location": "eastus2",
+        "storage": {
+            "account_name": "retaildatalake",
+            "account_key": "<YOUR_STORAGE_KEY>",
+            "containers": ["raw", "bronze", "silver", "gold", "checkpoints"]
+        },
+        "databricks": {
+            "workspace_url": "https://<YOUR_REGION>.azuredatabricks.net",
+            "token": "<YOUR_DATABRICKS_TOKEN>",
+            "cluster_id": "<YOUR_CLUSTER_ID>"
+        },
+        "sql_database": {
+            "server": "retail-sql-server.database.windows.net",
+            "database": "RetailDW",
+            "username": "<YOUR_SQL_USER>",
+            "password": "<YOUR_SQL_PASSWORD>"
+        },
+        "data_factory": {
+            "name": "adf-retail-lakehouse",
+            "resource_id": "/subscriptions/<SUB_ID>/resourceGroups/rg-retail-lakehouse/providers/Microsoft.DataFactory/factories/adf-retail-lakehouse"
+        },
+        "key_vault": {
+            "name": "kv-retail-lakehouse",
+            "url": "https://kv-retail-lakehouse.vault.azure.net/"
+        }
+    }
+}

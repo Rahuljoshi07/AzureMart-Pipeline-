@@ -1,0 +1,77 @@
+{
+    "name": "PL_Gold_To_SQL",
+    "properties": {
+        "description": "Loads curated Gold layer Delta tables into Azure SQL Database for reporting consumption. Executes stored procedures for upserts and quality checks.",
+        "activities": [
+            {
+                "name": "LoadGoldToSQL",
+                "type": "DatabricksNotebook",
+                "description": "Execute JDBC load from Gold Delta to Azure SQL",
+                "typeProperties": {
+                    "notebookPath": "/Shared/retail-lakehouse/04_load_to_sql",
+                    "baseParameters": {
+                        "load_mode": {
+                            "value": "@pipeline().parameters.load_mode",
+                            "type": "Expression"
+                        }
+                    }
+                },
+                "linkedServiceName": {
+                    "referenceName": "LS_Databricks",
+                    "type": "LinkedServiceReference"
+                }
+            },
+            {
+                "name": "RunQualityChecks",
+                "type": "SqlServerStoredProcedure",
+                "dependsOn": [
+                    {
+                        "activity": "LoadGoldToSQL",
+                        "dependencyConditions": ["Succeeded"]
+                    }
+                ],
+                "description": "Execute post-load data quality validation",
+                "typeProperties": {
+                    "storedProcedureName": "dbo.sp_run_quality_checks"
+                },
+                "linkedServiceName": {
+                    "referenceName": "LS_AzureSQL",
+                    "type": "LinkedServiceReference"
+                }
+            },
+            {
+                "name": "LogLoadResult",
+                "type": "SqlServerStoredProcedure",
+                "dependsOn": [
+                    {
+                        "activity": "RunQualityChecks",
+                        "dependencyConditions": ["Succeeded"]
+                    }
+                ],
+                "typeProperties": {
+                    "storedProcedureName": "dbo.sp_log_pipeline",
+                    "storedProcedureParameters": {
+                        "pipeline_name": { "value": "PL_Gold_To_SQL", "type": "String" },
+                        "run_id": { "value": "@pipeline().RunId", "type": "String" },
+                        "step_name": { "value": "GoldToSQL", "type": "String" },
+                        "status": { "value": "SUCCESS", "type": "String" }
+                    }
+                },
+                "linkedServiceName": {
+                    "referenceName": "LS_AzureSQL",
+                    "type": "LinkedServiceReference"
+                }
+            }
+        ],
+        "parameters": {
+            "load_mode": {
+                "type": "string",
+                "defaultValue": "overwrite"
+            }
+        },
+        "annotations": ["retail", "sql-load", "reporting"],
+        "folder": {
+            "name": "RetailLakehouse/Load"
+        }
+    }
+}
